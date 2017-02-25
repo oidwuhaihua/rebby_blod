@@ -1,0 +1,901 @@
+<!doctype html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+  
+  
+  
+  
+
+  
+    
+    
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    
+    
+    <link href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&subset=latin,latin-ext" rel="stylesheet" type="text/css">
+  
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.0" rel="stylesheet" type="text/css" />
+
+
+  <meta name="keywords" content="JVM," />
+
+
+
+
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/images/logo1.png" />
+
+
+
+
+
+
+<meta name="description" content="问题背景xx日项目上线新功能，当时还比较顺利，第二天早上发现当用户量上来，系统整体做交易比较慢，严重一点直接访问超时，必须要重启系统 才能暂时恢复正常，由于这次上线跟多个系统有对接关系，回退相当困难，只能在线上分析问题了，唉 不说多了，下面来一起分析问题吧。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="GC导致系统卡顿,分析过程.">
+<meta property="og:url" content="http://yoursite.com/2016/12/08/gc/index.html">
+<meta property="og:site_name" content="Rebby">
+<meta property="og:description" content="问题背景xx日项目上线新功能，当时还比较顺利，第二天早上发现当用户量上来，系统整体做交易比较慢，严重一点直接访问超时，必须要重启系统 才能暂时恢复正常，由于这次上线跟多个系统有对接关系，回退相当困难，只能在线上分析问题了，唉 不说多了，下面来一起分析问题吧。">
+<meta property="og:image" content="http://yoursite.com/images/GC1.png">
+<meta property="og:image" content="http://yoursite.com/images/GC2.png">
+<meta property="og:image" content="http://yoursite.com/images/GC3.png">
+<meta property="og:image" content="http://yoursite.com/images/GC4.png">
+<meta property="og:image" content="http://yoursite.com/images/GC5.png">
+<meta property="og:image" content="http://yoursite.com/images/GC6.png">
+<meta property="og:image" content="http://yoursite.com/images/GC7.png">
+<meta property="og:image" content="http://yoursite.com/images/GC10.png">
+<meta property="og:image" content="http://yoursite.com/images/GC8.png">
+<meta property="og:image" content="http://yoursite.com/images/GC9.png">
+<meta property="og:updated_time" content="2016-12-19T16:11:32.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="GC导致系统卡顿,分析过程.">
+<meta name="twitter:description" content="问题背景xx日项目上线新功能，当时还比较顺利，第二天早上发现当用户量上来，系统整体做交易比较慢，严重一点直接访问超时，必须要重启系统 才能暂时恢复正常，由于这次上线跟多个系统有对接关系，回退相当困难，只能在线上分析问题了，唉 不说多了，下面来一起分析问题吧。">
+<meta name="twitter:image" content="http://yoursite.com/images/GC1.png">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    sidebar: {"position":"left","display":"post","links_title":"Links","links":null,"MacTalk":"http://macshuo.com/","Title":"http://example.com/"},
+    fancybox: true,
+    motion: true,
+    duoshuo: {
+      userId: '6dccf2edf3fa188bcbd1a7a07dd8c4fd',
+      author: 'Rebby'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2016/12/08/gc/"/>
+
+
+
+
+
+  <title> GC导致系统卡顿,分析过程. | Rebby </title>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+
+
+
+  <script type="text/javascript">
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "//hm.baidu.com/hm.js?6dccf2edf3fa188bcbd1a7a07dd8c4fd";
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+  </script>
+
+
+
+
+
+
+
+
+  
+  
+    
+  
+
+  <div class="container one-collumn sidebar-position-left page-post-detail ">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-meta ">
+  
+
+  <div class="custom-logo-site-title">
+    <a href="/"  class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <span class="site-title">Rebby</span>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+  <p class="site-subtitle">oh cool! it's beautiful there.</p>
+</div>
+
+<div class="site-nav-toggle">
+  <button>
+    <span class="btn-bar"></span>
+    <span class="btn-bar"></span>
+    <span class="btn-bar"></span>
+  </button>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br />
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            归档
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br />
+            
+            分类
+          </a>
+        </li>
+      
+
+      
+        <li class="menu-item menu-item-search">
+          
+            <a href="javascript:;" class="popup-trigger">
+          
+            
+              <i class="menu-item-icon fa fa-search fa-fw"></i> <br />
+            
+            搜索
+          </a>
+        </li>
+      
+    </ul>
+  
+
+  
+    <div class="site-search">
+      
+  <div class="popup">
+ <span class="search-icon fa fa-search"></span>
+ <input type="text" id="local-search-input">
+ <div id="local-search-result"></div>
+ <span class="popup-btn-close">close</span>
+</div>
+
+
+    </div>
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
+  <link itemprop="mainEntityOfPage" href="http://yoursite.com/2016/12/08/gc/">
+
+  <span style="display:none" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <meta itemprop="name" content="Rebby">
+    <meta itemprop="description" content="">
+    <meta itemprop="image" content="/images/rebby.png">
+  </span>
+
+  <span style="display:none" itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+    <meta itemprop="name" content="Rebby">
+    <span style="display:none" itemprop="logo" itemscope itemtype="http://schema.org/ImageObject">
+      <img style="display:none;" itemprop="url image" alt="Rebby" src="">
+    </span>
+  </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+            
+            
+              
+                GC导致系统卡顿,分析过程.
+              
+            
+          </h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2016-12-08T21:01:44+08:00">
+                2016-12-08
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category" >
+              <span class="post-meta-divider">|</span>
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/JVM/" itemprop="url" rel="index">
+                    <span itemprop="name">JVM</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+
+          
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="问题背景"><a href="#问题背景" class="headerlink" title="问题背景"></a>问题背景</h2><p>xx日项目上线新功能，当时还比较顺利，第二天早上发现当用户量上来，系统整体做交易比较慢，严重一点直接访问超时，必须要重启系统 才能暂时恢复正常，由于这次上线跟多个系统有对接关系，回退相当困难，只能在线上分析问题了，唉 不说多了，下面来一起分析问题吧。   </p>
+<a id="more"></a>
+<h2 id="系统背景"><a href="#系统背景" class="headerlink" title="系统背景"></a>系统背景</h2><p>  整体使用 ESB架构 实现分布式部署，以及实现前后端分离（此文分析前端系统），前端系统 使用 WEB 服务器 对应一台 AP服务器 , 采用直连方式访问。在异地也配置两台备机AP。再通过网络层实现负载均衡以轮训的访问访问3台AP 。 </p>
+<ul>
+<li>基础软件方面<br>采用 WEB服务器、AP服务器、DB服务器的操作系统环境均采用RedHad5.8 ,数据库采用Oracle10.2.0.4 ,中间件采用Weblogic 10.3.5,WEB服务器采用Apache 2.0</li>
+<li>系统配置 <pre><code>WEB配置：2核CPU ，4G物理内存，300G硬盘内存 
+AP配置：4核CPU ， 16G物理内存，600G硬盘内存
+DB配置：4核CPU，32G物理内存，600G硬盘内存
+</code></pre></li>
+</ul>
+<h2 id="当时分析点"><a href="#当时分析点" class="headerlink" title="当时分析点"></a>当时分析点</h2><ul>
+<li>查看日志是否有死锁，异常交易。</li>
+<li>代码有死循环代码块，导致整个系统运行缓慢。</li>
+<li>数据库连接不够，导致有连接竞争，阻塞(Blocked)。</li>
+<li>数据库 有锁表的的问题。</li>
+<li>调用其他系统接口，可能有定时任务。导致响应缓慢，占用连接资源拖慢系统。</li>
+<li>服务器运行内存，CPU不够。</li>
+</ul>
+<h3 id="我们围绕着这5个点，逐步排查"><a href="#我们围绕着这5个点，逐步排查" class="headerlink" title="我们围绕着这5个点，逐步排查"></a>我们围绕着这5个点，逐步排查</h3><ul>
+<li>系统大部分交易日志都运行正常，非正常的就是访问超时。</li>
+<li>我们对新上线的功能进行Code Review，并没发现有死循环，非正常消耗资源的代码。</li>
+<li>有时候连接数不够用，我们把连接池数也加大。</li>
+<li>改完后我们运行，体现不出效果。当系统运行缓慢的时候，有很多连接都是空闲状态的。所以这点<br>可以排除点了。 </li>
+<li>数据库锁表问题，如果一旦锁表会导致修改删除，不能操作。但是我们系统流程可以正常运行，<br>这点也可以排除掉。</li>
+<li>我们有跟其他系统的接口人，一起测试过，他们响应都是毫秒级（不过一旦系统缓慢，我们这边监控到响应速度也是10几秒的）。   </li>
+<li>后来我们通过top命令，查看服务器使用资源有时候CPU会彪到300~400（我们系统4核），怀疑点指向了硬件配置。</li>
+</ul>
+<h3 id="最终决定解决方案："><a href="#最终决定解决方案：" class="headerlink" title="最终决定解决方案："></a>最终决定解决方案：</h3><ul>
+<li>调大CPU，把现有4核调整到8核，调优之后确实好转很多。系统运行时间 是之前的倍数，才会导致系统慢下来，这也算是治标不治本，权宜之计罢了。</li>
+</ul>
+<h3 id="搭建测试环境"><a href="#搭建测试环境" class="headerlink" title="搭建测试环境"></a>搭建测试环境</h3><p> 我们在本地通过Jmeter压测，同时通过Java Viratul 、Jconsole远程监控线程，发现有日志阻塞（Blocked），<br>    还有极少的Weblogic阻塞现象，但并没有有死锁（Deadlock） 。<br><img src="/images/GC1.png" alt="img"></p>
+<h3 id="CPU跑的极度不稳定时高时低，Weblogic没有异常现象。"><a href="#CPU跑的极度不稳定时高时低，Weblogic没有异常现象。" class="headerlink" title="CPU跑的极度不稳定时高时低，Weblogic没有异常现象。"></a>CPU跑的极度不稳定时高时低，Weblogic没有异常现象。</h3><p><img src="/images/GC2.png" alt="img"><br><img src="/images/GC3.png" alt="img"><br><img src="/images/GC4.png" alt="img"></p>
+<p>这个时候疑问来了，因为跑的并发数也只有少数个，为什么会导致CPU这么不稳定呢？会不会是跑通信（netty）服务端（提供接口方）跑的流程太多，导致低并发高耗时的问题，<br>为了验证这个问题我们把挡板（屏蔽服务端通信，本地通信）搭建来。测试结果也是一如既往。</p>
+<p>我们再从一个最简单的交易压测试试 ，CPU平均70%，CPU幅度还是比较大，压测（Jmeter）20几分钟左右停止 压测工具后，问题又出现了Weblogic又异常的卡。我们再通过jstat 看看GC回收情况。</p>
+<p><img src="/images/GC5.png" alt="img"></p>
+<p>压测工具（Jmeter）聚合结果，少数个并发，平均响应10秒以上(测试登陆交易聚合报告)</p>
+<p><img src="/images/GC6.png" alt="img"></p>
+<h3 id="少个并发，压测了26多分钟导致发生Full-GC发生数5678次，耗时5017-323秒，相当吓人啊。"><a href="#少个并发，压测了26多分钟导致发生Full-GC发生数5678次，耗时5017-323秒，相当吓人啊。" class="headerlink" title="少个并发，压测了26多分钟导致发生Full GC发生数5678次，耗时5017.323秒，相当吓人啊。"></a>少个并发，压测了26多分钟导致发生Full GC发生数5678次，耗时5017.323秒，相当吓人啊。</h3><h3 id="目测应该是程序某个地方触发了GC。全局搜索了下代码-程序中真有地方频繁调用System-gc-。"><a href="#目测应该是程序某个地方触发了GC。全局搜索了下代码-程序中真有地方频繁调用System-gc-。" class="headerlink" title="目测应该是程序某个地方触发了GC。全局搜索了下代码 程序中真有地方频繁调用System.gc() 。"></a>目测应该是程序某个地方触发了GC。全局搜索了下代码 程序中真有地方频繁调用System.gc() 。</h3><p>我们再把代码中调用系统垃圾回收(Full GC)去掉，同样的并发数，同样的测试时间，测试结果如下所示：<br>CPU使用率相对稳定</p>
+<p><img src="/images/GC7.png" alt="img"></p>
+<p>Java 虚拟机回收也比较稳定</p>
+<p><img src="/images/GC10.png" alt="img"></p>
+<p>Full GC(Mark-Sweep、标记-清除)触发0次 ，Minor GC触发68次。</p>
+<p><img src="/images/GC8.png" alt="img"></p>
+<p><img src="/images/GC9.png" alt="img"></p>
+<p>少数个并发，压测了26多分钟导致发生Full GC发生数0次，耗时0秒，CPU使用相对稳定，日志打印正常。</p>
+<p>压测中之所以CPU使用率幅度大，是因为Java虚拟机垃圾回收器机制所导致，我们使用的是Parallel GC 并行回收，如我们使用了8核CPU 那么我们会有8个线程来做回收这件事情，频繁触发 肯定会有8个线程一直在消耗CPU的资源，那么可能会导致 用户具体交易线程获得不到CPU使用权。目测JVM应该有设置线程使用CPU优先级。</p>
+<h2 id="实用排查方法以及命令"><a href="#实用排查方法以及命令" class="headerlink" title="实用排查方法以及命令"></a>实用排查方法以及命令</h2><p>查看消耗CPU 最高的线程</p>
+<ul>
+<li>使用命令top -p <pid> ，显示你的java进程的内存情况，pid是你的java进程号，比如123</pid></li>
+<li>按H，获取每个线程的内存情况</li>
+<li>找到内存和cpu占用最高的线程pid，比如15248</li>
+<li>执行 printf 0x%x 15248 得到 0x3b90 ,此为线程id的十六进制</li>
+<li>执行 jstack 123|grep -A 10 3b90，得到线程堆栈信息中3b90这个线程所在行的后面10行</li>
+<li>查看对应的堆栈信息找出可能存在问题的代码</li>
+</ul>
+<h3 id="Linux-JVM-常用命令"><a href="#Linux-JVM-常用命令" class="headerlink" title="Linux JVM 常用命令"></a>Linux JVM 常用命令</h3><ul>
+<li>jstat gcutil pid  可实时查看JVM 内存运行情况</li>
+<li>jmap pid  查看JVM内存配置</li>
+<li>jstack pid 查看堆栈信息</li>
+</ul>
+<h3 id="JVM-常用自带工具"><a href="#JVM-常用自带工具" class="headerlink" title="JVM 常用自带工具"></a>JVM 常用自带工具</h3><p>1、<a href="http://docs.oracle.com/javase/8/docs/technotes/tools/unix/jinfo.html" target="_blank" rel="external">jinfo</a><br>2、<a href="http://docs.oracle.com/javase/8/docs/technotes/tools/unix/jconsole.html" target="_blank" rel="external">jconsole</a><br>3、<a href="http://docs.oracle.com/javase/8/docs/technotes/tools/unix/jvisualvm.html" target="_blank" rel="external">jvisualvm</a><br>4、<a href="http://docs.oracle.com/javase/8/docs/technotes/tools/unix/jstat.html" target="_blank" rel="external">jstat</a><br>5、<a href="http://docs.oracle.com/javase/8/docs/technotes/tools/unix/jmap.html" target="_blank" rel="external">jmap</a><br>6、<a href="http://docs.oracle.com/javase/8/docs/technotes/tools/unix/jps.html" target="_blank" rel="external">jps</a><br>7、<a href="http://docs.oracle.com/javase/8/docs/technotes/tools/unix/jhat.html" target="_blank" rel="external">jhat</a><br>8、<a href="http://docs.oracle.com/javase/8/docs/technotes/tools/unix/jstack.html" target="_blank" rel="external">jstat</a></p>
+<h3 id="统计线程运行状态"><a href="#统计线程运行状态" class="headerlink" title="统计线程运行状态"></a>统计线程运行状态</h3><ul>
+<li>通过jstack pid 重定向到dump，再通过grep 统计线程状态<br>[weblogic@gzmbsap01 ~]$jstack 29957 &gt; /home/mw/weblogic/dump<br>[weblogic@gzmbsap01 ~]$grep java.lang.Thread.State dump | awk ‘{print $1$2$3$4$5}’ | sort | uniq -c</li>
+</ul>
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/JVM/" rel="tag"># JVM</a>
+          
+        </div>
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2016/12/03/next-md/" rel="next" title="hexo-next">
+                <i class="fa fa-chevron-left"></i> hexo-next
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2016/12/14/system1/" rel="prev" title="一、处理器的工作状态">
+                一、处理器的工作状态 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+  <div class="comments" id="comments">
+    
+  </div>
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap" >
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          <img class="site-author-image" itemprop="image"
+               src="/images/rebby.png"
+               alt="Rebby" />
+          <p class="site-author-name" itemprop="name">Rebby</p>
+          <p class="site-description motion-element" itemprop="description"></p>
+        </div>
+        <nav class="site-state motion-element">
+          <div class="site-state-item site-state-posts">
+            <a href="/archives">
+              <span class="site-state-item-count">12</span>
+              <span class="site-state-item-name">日志</span>
+            </a>
+          </div>
+
+          
+            <div class="site-state-item site-state-categories">
+              <a href="/categories">
+                <span class="site-state-item-count">6</span>
+                <span class="site-state-item-name">分类</span>
+              </a>
+            </div>
+          
+
+          
+            <div class="site-state-item site-state-tags">
+              
+                <span class="site-state-item-count">6</span>
+                <span class="site-state-item-name">标签</span>
+              
+            </div>
+          
+
+        </nav>
+
+        
+
+        <div class="links-of-author motion-element">
+          
+            
+              <span class="links-of-author-item">
+                <a href="https://github.com/oidwuhaihua" target="_blank" title="GitHub">
+                  
+                    <i class="fa fa-fw fa-github"></i>
+                  
+                  GitHub
+                </a>
+              </span>
+            
+              <span class="links-of-author-item">
+                <a href="https://twitter.com/" target="_blank" title="Twitter">
+                  
+                    <i class="fa fa-fw fa-twitter"></i>
+                  
+                  Twitter
+                </a>
+              </span>
+            
+          
+        </div>
+
+        
+        
+
+        
+        
+
+        
+
+
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#问题背景"><span class="nav-number">1.</span> <span class="nav-text">问题背景</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#系统背景"><span class="nav-number">2.</span> <span class="nav-text">系统背景</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#当时分析点"><span class="nav-number">3.</span> <span class="nav-text">当时分析点</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#我们围绕着这5个点，逐步排查"><span class="nav-number">3.1.</span> <span class="nav-text">我们围绕着这5个点，逐步排查</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#最终决定解决方案："><span class="nav-number">3.2.</span> <span class="nav-text">最终决定解决方案：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#搭建测试环境"><span class="nav-number">3.3.</span> <span class="nav-text">搭建测试环境</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#CPU跑的极度不稳定时高时低，Weblogic没有异常现象。"><span class="nav-number">3.4.</span> <span class="nav-text">CPU跑的极度不稳定时高时低，Weblogic没有异常现象。</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#少个并发，压测了26多分钟导致发生Full-GC发生数5678次，耗时5017-323秒，相当吓人啊。"><span class="nav-number">3.5.</span> <span class="nav-text">少个并发，压测了26多分钟导致发生Full GC发生数5678次，耗时5017.323秒，相当吓人啊。</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#目测应该是程序某个地方触发了GC。全局搜索了下代码-程序中真有地方频繁调用System-gc-。"><span class="nav-number">3.6.</span> <span class="nav-text">目测应该是程序某个地方触发了GC。全局搜索了下代码 程序中真有地方频繁调用System.gc() 。</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#实用排查方法以及命令"><span class="nav-number">4.</span> <span class="nav-text">实用排查方法以及命令</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Linux-JVM-常用命令"><span class="nav-number">4.1.</span> <span class="nav-text">Linux JVM 常用命令</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#JVM-常用自带工具"><span class="nav-number">4.2.</span> <span class="nav-text">JVM 常用自带工具</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#统计线程运行状态"><span class="nav-number">4.3.</span> <span class="nav-text">统计线程运行状态</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright" >
+  
+  &copy; 
+  <span itemprop="copyrightYear">2017</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Rebby</span>
+</div>
+
+
+<div class="powered-by">
+  由 <a class="theme-link" href="https://hexo.io">Hexo</a> 强力驱动
+</div>
+
+<div class="theme-info">
+  主题 -
+  <a class="theme-link" href="https://github.com/iissnan/hexo-theme-next">
+    NexT.Mist
+  </a>
+</div>
+
+
+        
+
+        
+      </div>
+    </footer>
+
+    <div class="back-to-top">
+      <i class="fa fa-arrow-up"></i>
+    </div>
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+  
+  <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.0"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.0"></script>
+
+
+
+  
+
+
+
+  
+
+
+
+
+	
+
+
+
+
+  
+  
+  <script type="text/javascript">
+    // Popup Window;
+    var isfetched = false;
+    // Search DB path;
+    var search_path = "search.xml";
+    if (search_path.length == 0) {
+      search_path = "search.xml";
+    }
+    var path = "/" + search_path;
+    // monitor main search box;
+
+    function proceedsearch() {
+      $("body").append('<div class="popoverlay">').css('overflow', 'hidden');
+      $('.popup').toggle();
+    }
+    // search function;
+    var searchFunc = function(path, search_id, content_id) {
+      'use strict';
+      $.ajax({
+        url: path,
+        dataType: "xml",
+        async: true,
+        success: function( xmlResponse ) {
+          // get the contents from search data
+          isfetched = true;
+          $('.popup').detach().appendTo('.header-inner');
+          var datas = $( "entry", xmlResponse ).map(function() {
+            return {
+              title: $( "title", this ).text(),
+              content: $("content",this).text(),
+              url: $( "url" , this).text()
+            };
+          }).get();
+          var $input = document.getElementById(search_id);
+          var $resultContent = document.getElementById(content_id);
+          $input.addEventListener('input', function(){
+            var matchcounts = 0;
+            var str='<ul class=\"search-result-list\">';
+            var keywords = this.value.trim().toLowerCase().split(/[\s\-]+/);
+            $resultContent.innerHTML = "";
+            if (this.value.trim().length > 1) {
+              // perform local searching
+              datas.forEach(function(data) {
+                var isMatch = false;
+                var content_index = [];
+                var data_title = data.title.trim().toLowerCase();
+                var data_content = data.content.trim().replace(/<[^>]+>/g,"").toLowerCase();
+                var data_url = decodeURIComponent(data.url);
+                var index_title = -1;
+                var index_content = -1;
+                var first_occur = -1;
+                // only match artiles with not empty titles and contents
+                if(data_title != '') {
+                  keywords.forEach(function(keyword, i) {
+                    index_title = data_title.indexOf(keyword);
+                    index_content = data_content.indexOf(keyword);
+                    if( index_title >= 0 || index_content >= 0 ){
+                      isMatch = true;
+                      if (i == 0) {
+                        first_occur = index_content;
+                      }
+                    }
+
+                  });
+                }
+                // show search results
+                if (isMatch) {
+                  matchcounts += 1;
+                  str += "<li><a href='"+ data_url +"' class='search-result-title'>"+ data_title +"</a>";
+                  var content = data.content.trim().replace(/<[^>]+>/g,"");
+                  if (first_occur >= 0) {
+                    // cut out 100 characters
+                    var start = first_occur - 20;
+                    var end = first_occur + 80;
+                    if(start < 0){
+                      start = 0;
+                    }
+                    if(start == 0){
+                      end = 50;
+                    }
+                    if(end > content.length){
+                      end = content.length;
+                    }
+                    var match_content = content.substring(start, end);
+                    // highlight all keywords
+                    keywords.forEach(function(keyword){
+                      var regS = new RegExp(keyword, "gi");
+                      match_content = match_content.replace(regS, "<b class=\"search-keyword\">"+keyword+"</b>");
+                    });
+
+                    str += "<p class=\"search-result\">" + match_content +"...</p>"
+                  }
+                  str += "</li>";
+                }
+              })};
+            str += "</ul>";
+            if (matchcounts == 0) { str = '<div id="no-result"><i class="fa fa-frown-o fa-5x" /></div>' }
+            if (keywords == "") { str = '<div id="no-result"><i class="fa fa-search fa-5x" /></div>' }
+            $resultContent.innerHTML = str;
+          });
+          proceedsearch();
+        }
+      });}
+
+    // handle and trigger popup window;
+    $('.popup-trigger').click(function(e) {
+      e.stopPropagation();
+      if (isfetched == false) {
+        searchFunc(path, 'local-search-input', 'local-search-result');
+      } else {
+        proceedsearch();
+      };
+    });
+
+    $('.popup-btn-close').click(function(e){
+      $('.popup').hide();
+      $(".popoverlay").remove();
+      $('body').css('overflow', '');
+    });
+    $('.popup').click(function(e){
+      e.stopPropagation();
+    });
+  </script>
+
+
+  
+
+  
+
+  
+
+  
+
+
+</body>
+</html>

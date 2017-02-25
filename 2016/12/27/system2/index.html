@@ -1,0 +1,855 @@
+<!doctype html>
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  <link href="/lib/fancybox/source/jquery.fancybox.css?v=2.1.5" rel="stylesheet" type="text/css" />
+
+
+
+
+  
+  
+  
+  
+
+  
+    
+    
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+    
+    
+    <link href="//fonts.googleapis.com/css?family=Lato:300,300italic,400,400italic,700,700italic&subset=latin,latin-ext" rel="stylesheet" type="text/css">
+  
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=5.1.0" rel="stylesheet" type="text/css" />
+
+
+  <meta name="keywords" content="操作系统概论," />
+
+
+
+
+
+
+
+
+  <link rel="shortcut icon" type="image/x-icon" href="/images/logo1.png" />
+
+
+
+
+
+
+<meta name="description" content="背景说明对于多道并行执行的程序来说，有时候它要占用处理器（单核）的运行，有时候要等待传送的信息，当得到信息后又可以继续执行，一个程序能受到另一个程序的约束。所以，程序的执行实际上是走走停停的，为了能够正确反映程序执行的活动规律以及状态，我们要引进新的概念–进程，以便从变化的角度，动态的分析程序运行的状态。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="二、进程的概念">
+<meta property="og:url" content="http://yoursite.com/2016/12/27/system2/index.html">
+<meta property="og:site_name" content="Rebby">
+<meta property="og:description" content="背景说明对于多道并行执行的程序来说，有时候它要占用处理器（单核）的运行，有时候要等待传送的信息，当得到信息后又可以继续执行，一个程序能受到另一个程序的约束。所以，程序的执行实际上是走走停停的，为了能够正确反映程序执行的活动规律以及状态，我们要引进新的概念–进程，以便从变化的角度，动态的分析程序运行的状态。">
+<meta property="og:image" content="http://yoursite.com/images/process_status.png">
+<meta property="og:updated_time" content="2017-01-08T14:54:15.000Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="二、进程的概念">
+<meta name="twitter:description" content="背景说明对于多道并行执行的程序来说，有时候它要占用处理器（单核）的运行，有时候要等待传送的信息，当得到信息后又可以继续执行，一个程序能受到另一个程序的约束。所以，程序的执行实际上是走走停停的，为了能够正确反映程序执行的活动规律以及状态，我们要引进新的概念–进程，以便从变化的角度，动态的分析程序运行的状态。">
+<meta name="twitter:image" content="http://yoursite.com/images/process_status.png">
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    sidebar: {"position":"left","display":"post","links_title":"Links","links":null,"MacTalk":"http://macshuo.com/","Title":"http://example.com/"},
+    fancybox: true,
+    motion: true,
+    duoshuo: {
+      userId: '6dccf2edf3fa188bcbd1a7a07dd8c4fd',
+      author: 'Rebby'
+    },
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+
+  <link rel="canonical" href="http://yoursite.com/2016/12/27/system2/"/>
+
+
+
+
+
+  <title> 二、进程的概念 | Rebby </title>
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+
+
+
+  <script type="text/javascript">
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "//hm.baidu.com/hm.js?6dccf2edf3fa188bcbd1a7a07dd8c4fd";
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+  </script>
+
+
+
+
+
+
+
+
+  
+  
+    
+  
+
+  <div class="container one-collumn sidebar-position-left page-post-detail ">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-meta ">
+  
+
+  <div class="custom-logo-site-title">
+    <a href="/"  class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <span class="site-title">Rebby</span>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+  <p class="site-subtitle">oh cool! it's beautiful there.</p>
+</div>
+
+<div class="site-nav-toggle">
+  <button>
+    <span class="btn-bar"></span>
+    <span class="btn-bar"></span>
+    <span class="btn-bar"></span>
+  </button>
+</div>
+
+<nav class="site-nav">
+  
+
+  
+    <ul id="menu" class="menu">
+      
+        
+        <li class="menu-item menu-item-home">
+          <a href="/" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-home"></i> <br />
+            
+            首页
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-about">
+          <a href="/about" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-user"></i> <br />
+            
+            关于
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-archives">
+          <a href="/archives" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />
+            
+            归档
+          </a>
+        </li>
+      
+        
+        <li class="menu-item menu-item-categories">
+          <a href="/categories" rel="section">
+            
+              <i class="menu-item-icon fa fa-fw fa-th"></i> <br />
+            
+            分类
+          </a>
+        </li>
+      
+
+      
+        <li class="menu-item menu-item-search">
+          
+            <a href="javascript:;" class="popup-trigger">
+          
+            
+              <i class="menu-item-icon fa fa-search fa-fw"></i> <br />
+            
+            搜索
+          </a>
+        </li>
+      
+    </ul>
+  
+
+  
+    <div class="site-search">
+      
+  <div class="popup">
+ <span class="search-icon fa fa-search"></span>
+ <input type="text" id="local-search-input">
+ <div id="local-search-result"></div>
+ <span class="popup-btn-close">close</span>
+</div>
+
+
+    </div>
+  
+</nav>
+
+
+
+ </div>
+    </header>
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal " itemscope itemtype="http://schema.org/Article">
+  <link itemprop="mainEntityOfPage" href="http://yoursite.com/2016/12/27/system2/">
+
+  <span style="display:none" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <meta itemprop="name" content="Rebby">
+    <meta itemprop="description" content="">
+    <meta itemprop="image" content="/images/rebby.png">
+  </span>
+
+  <span style="display:none" itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+    <meta itemprop="name" content="Rebby">
+    <span style="display:none" itemprop="logo" itemscope itemtype="http://schema.org/ImageObject">
+      <img style="display:none;" itemprop="url image" alt="Rebby" src="">
+    </span>
+  </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+            
+            
+              
+                二、进程的概念
+              
+            
+          </h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2016-12-27T22:01:44+08:00">
+                2016-12-27
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+            <span class="post-category" >
+              <span class="post-meta-divider">|</span>
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/操作系统概论/" itemprop="url" rel="index">
+                    <span itemprop="name">操作系统概论</span>
+                  </a>
+                </span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+
+          
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="背景说明"><a href="#背景说明" class="headerlink" title="背景说明"></a>背景说明</h2><p>对于多道并行执行的程序来说，有时候它要占用处理器（单核）的运行，有时候要等待传送的信息，当得到信息后又可以继续执行，一个程序能受到另一个程序的约束。所以，程序的执行实际上是走走停停的，为了能够正确反映程序执行的活动规律以及状态，我们要引进新的概念–进程，以便从变化的角度，动态的分析程序运行的状态。<br><a id="more"></a></p>
+<h2 id="进程的定义"><a href="#进程的定义" class="headerlink" title="进程的定义"></a>进程的定义</h2><p>我们都知道计算机为了解决某些业务问题，首先必须会编写程序代码，可把程序代码看作是具有独立功能的一组指令集合，或者说是指出处理器执行操作的步骤。程序执行必须依赖于一个实体–数据集。把一个程序在一个数据集上的一次执行称之为一个<code>进程（Process）</code>.<br>可用一个铁路交通管理的例子来比如程序和进程。为了对比说明，首先区分火车和列车。火车是一种可以载人的交通工具，而列车是指已经从某起点出发但是还没有到达终点站得正在行驶的火车。对于火车而言，它是静止的，它具有运输人或货物的功能。对列车而言，它是动态的，除了火车本身以外，还包括了人或物，要把人或物送到目的地。显然，可以把火车比作程序，把列车比作进程，列车中的人或物看作程序执行的数据集。</p>
+<h2 id="为什么要引入进程"><a href="#为什么要引入进程" class="headerlink" title="为什么要引入进程"></a>为什么要引入进程</h2><h3 id="提高资源利用率"><a href="#提高资源利用率" class="headerlink" title="提高资源利用率"></a>提高资源利用率</h3><p>操作系统把一个计算问题中每个独立执行的程序模块看作一个进程，例如，输入进程、处理进程、打印进程。通过进程同步可使这些进程正确合作，从而使处理器与外围设备之间有效的并行工作，提高资源利用率。</p>
+<h2 id="进程的属性"><a href="#进程的属性" class="headerlink" title="进程的属性"></a>进程的属性</h2><p>1、进程是动态的，他包含了数据和运行在数据集上的程序。<br>2、多个进程可以含有相同的程序<br>进程与进程并非是一一对应的。一个程序运行在不同的数据集上就构成不同的进程，分别得到不同的结果。对不同的进程，可用不同的进程名来区分。这好比同一列火车在不同的时候可以有不同的车次一样。例如一列火车从上海开往北京时，称为Z14次列车，把上海的旅客送往北京；当这一列火车从北京返回时，它被称为Z13次列车，把北京的旅客送往上海。</p>
+<h3 id="多进程并发执行"><a href="#多进程并发执行" class="headerlink" title="多进程并发执行"></a>多进程并发执行</h3><p>若干个进程是可以同时执行的，即一个进程已经开始工作但是还没有结束之前，另一个进程也可以开始工作。把这些进程称之为是<code>同时执行的进程</code>,或者称之为进程的<code>并发执行</code>.这正像不同车次的列车可以同时运行一样。必须强调的是，<code>同一列火车是不能同时即作为Z14次列车又作为Z13次列车运行的，但同一个程序是可以同时在不同数据集上运行构成不同的进程的，例如，在多道程序设计系统中，编译程序可以同时对若干个用户的源程序进行编译，即使一个编译程序可同时被多个用户调用，构成多个可同时执行的进程。</code></p>
+<h3 id="进程的基本状态"><a href="#进程的基本状态" class="headerlink" title="进程的基本状态"></a>进程的基本状态</h3><p>一个进程在占用处理器运行的过程中，可能由于某些原因要占时让出处理器。例如，一个正占有处理器运行的进程P1启动一个设备后，往往要等到外围设备传输完信息才能再运行，于是P1启动了外围设备后应让出处理器。这时另一个进程P2可能占有处理器运行。当P1启动的外围设备完成了传输工作后，可能要暂停P2的运行，让P1继续运行下去，所以，对一个单核处理器的系统来说，若干个进程是轮流占用处理器的运行，一个进程运行若干条指令后，由于自身的原因（例如，有高优先级的进程要运行）让出处理器，然后别的进程可以占用处理器。为了便于管理进程，我们按进程在执行过程中不同时刻的不同情况定义三种不同的基本状态：</p>
+<ul>
+<li>等待态 等待某一事件</li>
+<li>就绪态 等待系统分配处理器以便运行；</li>
+<li>运行态 正在占有处理器运行。<br>进程在执行过程中不断发生状态变化，进程的转换图如下所示：</li>
+</ul>
+<center><br><img src="/images/process_status.png" width="60%" height="60%"><br></center>
+
+<ul>
+<li>运行态–&gt;等待态<br>一个进程运行中启动了外围设备，等待外围设备传输结束；进程在运行中申请资源（主存空间，外围设备）得不到满足，变成等待分配资源状态；进程在运行中出现了故障（程序错，主存错误），变成等待排除干预状态。</li>
+<li>等待态–&gt;就绪态<br>外围设备工作结束，使等待外围设备传输者结束等待；等待资源得到满足（另一进程归还）；故障排除后等待干预的进程结束等待。<br>一个结束等待的进程必须转换成就绪态，当分配到处理器后才运行。</li>
+<li><p>运行态–&gt;就绪态<br>分配给进程占用处理器的时间用完而强迫进程让出处理器；有更高优先级的进程要运行，迫使当前运行进程让出处理器。</p>
+</li>
+<li><p>就绪态–&gt;运行态<br>有多个进程等待分配处理器时，系统按一种规定的策略（进程提供了两种优先级，一种是普通的进程优先级，第二个是实时优先级。前者适用SCHED_NORMAL调度策略，后者可选SCHED_FIFO或SCHED_RR调度策略。任何时候，实时进程的优先级都高于普通进程，实时进程只会被更高级的实时进程抢占，同级实时进程之间是按照FIFO（一次机会做完）或者RR（多次轮转）规则调度的。），从多个处于<code>就绪态</code>的进程中选择一个进程，让他占用处理器，被选中的进程就变成<code>运行态</code>。</p>
+</li>
+</ul>
+<p>根据上述四个基本属性可概括为进程具有如下三个特性：</p>
+<ul>
+<li>动态性 进程是程序一次性执行的过程，在执行过程中状态不断变化。</li>
+<li>并发性 若干个进程是可同时被执行的，它们轮流占用处理器交替执行</li>
+<li>异步性 进程的执行速度取决于自身与外界原因以及进程调度策略，因此可以不可预知的速度向前推进。</li>
+</ul>
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+    <div>
+      
+        
+
+      
+    </div>
+
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/操作系统概论/" rel="tag"># 操作系统概论</a>
+          
+        </div>
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2016/12/14/system1/" rel="next" title="一、处理器的工作状态">
+                <i class="fa fa-chevron-left"></i> 一、处理器的工作状态
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2017/01/05/thread/" rel="prev" title="随手笔记">
+                随手笔记 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+
+          
+  <div class="comments" id="comments">
+    
+  </div>
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap" >
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+          <img class="site-author-image" itemprop="image"
+               src="/images/rebby.png"
+               alt="Rebby" />
+          <p class="site-author-name" itemprop="name">Rebby</p>
+          <p class="site-description motion-element" itemprop="description"></p>
+        </div>
+        <nav class="site-state motion-element">
+          <div class="site-state-item site-state-posts">
+            <a href="/archives">
+              <span class="site-state-item-count">12</span>
+              <span class="site-state-item-name">日志</span>
+            </a>
+          </div>
+
+          
+            <div class="site-state-item site-state-categories">
+              <a href="/categories">
+                <span class="site-state-item-count">6</span>
+                <span class="site-state-item-name">分类</span>
+              </a>
+            </div>
+          
+
+          
+            <div class="site-state-item site-state-tags">
+              
+                <span class="site-state-item-count">6</span>
+                <span class="site-state-item-name">标签</span>
+              
+            </div>
+          
+
+        </nav>
+
+        
+
+        <div class="links-of-author motion-element">
+          
+            
+              <span class="links-of-author-item">
+                <a href="https://github.com/oidwuhaihua" target="_blank" title="GitHub">
+                  
+                    <i class="fa fa-fw fa-github"></i>
+                  
+                  GitHub
+                </a>
+              </span>
+            
+              <span class="links-of-author-item">
+                <a href="https://twitter.com/" target="_blank" title="Twitter">
+                  
+                    <i class="fa fa-fw fa-twitter"></i>
+                  
+                  Twitter
+                </a>
+              </span>
+            
+          
+        </div>
+
+        
+        
+
+        
+        
+
+        
+
+
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#背景说明"><span class="nav-number">1.</span> <span class="nav-text">背景说明</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#进程的定义"><span class="nav-number">2.</span> <span class="nav-text">进程的定义</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#为什么要引入进程"><span class="nav-number">3.</span> <span class="nav-text">为什么要引入进程</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#提高资源利用率"><span class="nav-number">3.1.</span> <span class="nav-text">提高资源利用率</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#进程的属性"><span class="nav-number">4.</span> <span class="nav-text">进程的属性</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#多进程并发执行"><span class="nav-number">4.1.</span> <span class="nav-text">多进程并发执行</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#进程的基本状态"><span class="nav-number">4.2.</span> <span class="nav-text">进程的基本状态</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright" >
+  
+  &copy; 
+  <span itemprop="copyrightYear">2017</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Rebby</span>
+</div>
+
+
+<div class="powered-by">
+  由 <a class="theme-link" href="https://hexo.io">Hexo</a> 强力驱动
+</div>
+
+<div class="theme-info">
+  主题 -
+  <a class="theme-link" href="https://github.com/iissnan/hexo-theme-next">
+    NexT.Mist
+  </a>
+</div>
+
+
+        
+
+        
+      </div>
+    </footer>
+
+    <div class="back-to-top">
+      <i class="fa fa-arrow-up"></i>
+    </div>
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+  
+  <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+
+  
+  <script type="text/javascript" src="/lib/fastclick/lib/fastclick.min.js?v=1.0.6"></script>
+
+  
+  <script type="text/javascript" src="/lib/jquery_lazyload/jquery.lazyload.js?v=1.9.7"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+
+  
+  <script type="text/javascript" src="/lib/fancybox/source/jquery.fancybox.pack.js?v=2.1.5"></script>
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=5.1.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=5.1.0"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=5.1.0"></script>
+
+
+
+  
+
+
+
+  
+
+
+
+
+	
+
+
+
+
+  
+  
+  <script type="text/javascript">
+    // Popup Window;
+    var isfetched = false;
+    // Search DB path;
+    var search_path = "search.xml";
+    if (search_path.length == 0) {
+      search_path = "search.xml";
+    }
+    var path = "/" + search_path;
+    // monitor main search box;
+
+    function proceedsearch() {
+      $("body").append('<div class="popoverlay">').css('overflow', 'hidden');
+      $('.popup').toggle();
+    }
+    // search function;
+    var searchFunc = function(path, search_id, content_id) {
+      'use strict';
+      $.ajax({
+        url: path,
+        dataType: "xml",
+        async: true,
+        success: function( xmlResponse ) {
+          // get the contents from search data
+          isfetched = true;
+          $('.popup').detach().appendTo('.header-inner');
+          var datas = $( "entry", xmlResponse ).map(function() {
+            return {
+              title: $( "title", this ).text(),
+              content: $("content",this).text(),
+              url: $( "url" , this).text()
+            };
+          }).get();
+          var $input = document.getElementById(search_id);
+          var $resultContent = document.getElementById(content_id);
+          $input.addEventListener('input', function(){
+            var matchcounts = 0;
+            var str='<ul class=\"search-result-list\">';
+            var keywords = this.value.trim().toLowerCase().split(/[\s\-]+/);
+            $resultContent.innerHTML = "";
+            if (this.value.trim().length > 1) {
+              // perform local searching
+              datas.forEach(function(data) {
+                var isMatch = false;
+                var content_index = [];
+                var data_title = data.title.trim().toLowerCase();
+                var data_content = data.content.trim().replace(/<[^>]+>/g,"").toLowerCase();
+                var data_url = decodeURIComponent(data.url);
+                var index_title = -1;
+                var index_content = -1;
+                var first_occur = -1;
+                // only match artiles with not empty titles and contents
+                if(data_title != '') {
+                  keywords.forEach(function(keyword, i) {
+                    index_title = data_title.indexOf(keyword);
+                    index_content = data_content.indexOf(keyword);
+                    if( index_title >= 0 || index_content >= 0 ){
+                      isMatch = true;
+                      if (i == 0) {
+                        first_occur = index_content;
+                      }
+                    }
+
+                  });
+                }
+                // show search results
+                if (isMatch) {
+                  matchcounts += 1;
+                  str += "<li><a href='"+ data_url +"' class='search-result-title'>"+ data_title +"</a>";
+                  var content = data.content.trim().replace(/<[^>]+>/g,"");
+                  if (first_occur >= 0) {
+                    // cut out 100 characters
+                    var start = first_occur - 20;
+                    var end = first_occur + 80;
+                    if(start < 0){
+                      start = 0;
+                    }
+                    if(start == 0){
+                      end = 50;
+                    }
+                    if(end > content.length){
+                      end = content.length;
+                    }
+                    var match_content = content.substring(start, end);
+                    // highlight all keywords
+                    keywords.forEach(function(keyword){
+                      var regS = new RegExp(keyword, "gi");
+                      match_content = match_content.replace(regS, "<b class=\"search-keyword\">"+keyword+"</b>");
+                    });
+
+                    str += "<p class=\"search-result\">" + match_content +"...</p>"
+                  }
+                  str += "</li>";
+                }
+              })};
+            str += "</ul>";
+            if (matchcounts == 0) { str = '<div id="no-result"><i class="fa fa-frown-o fa-5x" /></div>' }
+            if (keywords == "") { str = '<div id="no-result"><i class="fa fa-search fa-5x" /></div>' }
+            $resultContent.innerHTML = str;
+          });
+          proceedsearch();
+        }
+      });}
+
+    // handle and trigger popup window;
+    $('.popup-trigger').click(function(e) {
+      e.stopPropagation();
+      if (isfetched == false) {
+        searchFunc(path, 'local-search-input', 'local-search-result');
+      } else {
+        proceedsearch();
+      };
+    });
+
+    $('.popup-btn-close').click(function(e){
+      $('.popup').hide();
+      $(".popoverlay").remove();
+      $('body').css('overflow', '');
+    });
+    $('.popup').click(function(e){
+      e.stopPropagation();
+    });
+  </script>
+
+
+  
+
+  
+
+  
+
+  
+
+
+</body>
+</html>
